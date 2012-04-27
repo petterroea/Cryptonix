@@ -39,8 +39,106 @@ public class FileEncrypt extends JFrame {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		new FileEncrypt();
-
+		System.out.println(args.length);
+		if(args.length>0)
+		{
+			if(args[0].equalsIgnoreCase("-c")&&args.length==2)
+			{
+				//Corrupt
+				File file = new File(args[2]);
+				if(!file.exists())
+				{
+					System.out.println("The specified file does not exist!");
+					return;
+				}
+				System.out.println("Corrupting file...");
+				long start = System.currentTimeMillis();
+				try{
+					doCopy(new FileInputStream(file), new FileOutputStream(new File(file.getAbsolutePath()+".temp")));
+					FileInputStream isf = new FileInputStream(new File(file.getAbsolutePath()+".temp"));
+					FileOutputStream osf = new FileOutputStream(file);
+					InputStream is = isf;
+					OutputStream os = osf;
+					byte[] bytes = new byte[64];
+					int numBytes;
+					Random random = new Random();
+					while ((numBytes = is.read(bytes)) != -1) {
+						random.nextBytes(bytes);
+						os.write(bytes, 0, numBytes);
+					}
+					os.flush();
+					os.close();
+					is.close();
+					File temp = new File(file.getAbsolutePath()+".temp");
+					temp.delete();
+					long time = System.currentTimeMillis()-start;
+					System.out.println("Corrupted the file in " + time + " ms");
+					return;
+					} catch (Exception e) {
+						System.out.println("There was an error: " + e);
+					}
+			}
+			else if(args[0].equalsIgnoreCase("-D")&&args.length==4)
+			{
+				//Decrypt
+				long start = System.currentTimeMillis();
+				File from = new File(args[2]);
+				File to = new File(args[1]);
+				String key = getBetterPass(args[3]);
+				try{
+				DESKeySpec dks = new DESKeySpec(key.getBytes());
+				SecretKeyFactory skf = SecretKeyFactory.getInstance("DES");
+				SecretKey desKey = skf.generateSecret(dks);
+				Cipher cipher = Cipher.getInstance("DES"); // DES/ECB/PKCS5Padding for SunJCE
+				
+				cipher.init(Cipher.DECRYPT_MODE, desKey);
+				CipherOutputStream cos = new CipherOutputStream(new FileOutputStream(to), cipher);
+				doCopy(new FileInputStream(from), cos);
+				long time = System.currentTimeMillis()-start;
+				} catch(Exception e)
+				{
+					System.out.println("There was an error: " +e);
+				}
+			}
+			else if(args[1].equalsIgnoreCase("-e")&&args.length==3)
+			{
+				//Encrypt
+				long start = System.currentTimeMillis();
+				File to = new File(args[1]);
+				File from = new File(args[2]);
+				String key = getBetterPass(args[3]);
+				try{
+					DESKeySpec dks = new DESKeySpec(key.getBytes());
+					SecretKeyFactory skf = SecretKeyFactory.getInstance("DES");
+					SecretKey desKey = skf.generateSecret(dks);
+					Cipher cipher = Cipher.getInstance("DES"); // DES/ECB/PKCS5Padding for SunJCE
+					
+					cipher.init(Cipher.ENCRYPT_MODE, desKey);
+					CipherInputStream cis = new CipherInputStream(new FileInputStream(from), cipher);
+					doCopy(cis, new FileOutputStream(to));
+					long time = System.currentTimeMillis()-start;
+					System.out.println("Encrypted the file in " + time + " ms");
+					} catch(Exception e) {
+						System.out.println("There was an error: " + e);
+					}
+			}
+			else
+			{
+				System.out.println("Use: java -jar Cryptonix.jar <Option> <The option's options>");
+				System.out.println("Options are: ");
+				System.out.println("    -C    - Corrupts the file. Required options:");
+				System.out.println("        <File>");
+				System.out.println("    -D    - Decrypts a file. Required options:");
+				System.out.println("        <To(new file)> <From(original file)> <PASSWORD>");
+				System.out.println("    -E    - Encrypts a file. Required options:");
+				System.out.println("        <To(new file)> <From(original file)> <PASSWORD>");
+				System.out.println("All other options return you to this help menu");
+			}
+		}
+		else
+		{
+			new FileEncrypt();
+		}
 	}
 	File encryptFile;
 	File decryptFile;
@@ -220,6 +318,7 @@ public class FileEncrypt extends JFrame {
 				    JOptionPane.ERROR_MESSAGE);
 			return;
 		}
+		long start = System.currentTimeMillis();
 		File to = new File(encryptFile.getAbsolutePath()+".encrypted");
 		File from = encryptFile;
 		String key = getBetterPass(pass.getText());
@@ -232,8 +331,9 @@ public class FileEncrypt extends JFrame {
 			cipher.init(Cipher.ENCRYPT_MODE, desKey);
 			CipherInputStream cis = new CipherInputStream(new FileInputStream(from), cipher);
 			doCopy(cis, new FileOutputStream(to));
+			long time = System.currentTimeMillis()-start;
 			JOptionPane.showMessageDialog(this,
-				    "Done!",
+				    "Done in " + time + " ms",
 				    "Status",
 				    JOptionPane.INFORMATION_MESSAGE);
 			} catch(Exception e) {
@@ -261,6 +361,7 @@ public class FileEncrypt extends JFrame {
 				    JOptionPane.ERROR_MESSAGE);
 			return;
 		}
+		long start = System.currentTimeMillis();
 		File from = decryptFile;
 		File to = new File(from.getAbsolutePath().replace(".encrypted", ""));
 		String key = getBetterPass(pass.getText());
@@ -273,8 +374,9 @@ public class FileEncrypt extends JFrame {
 		cipher.init(Cipher.DECRYPT_MODE, desKey);
 		CipherOutputStream cos = new CipherOutputStream(new FileOutputStream(to), cipher);
 		doCopy(new FileInputStream(from), cos);
+		long time = System.currentTimeMillis()-start;
 		JOptionPane.showMessageDialog(this,
-			    "Done!",
+			    "Done in " + time + " ms",
 			    "Status",
 			    JOptionPane.INFORMATION_MESSAGE);
 		return;
@@ -285,7 +387,7 @@ public class FileEncrypt extends JFrame {
 				    JOptionPane.ERROR_MESSAGE);
 		}
 	}
-	public String getBetterPass(String original)
+	public static String getBetterPass(String original)
 	{
 		if(original.length() < 8)
 		{
@@ -308,6 +410,7 @@ public class FileEncrypt extends JFrame {
 				    JOptionPane.ERROR_MESSAGE);
 			return;
 		}
+		long start = System.currentTimeMillis();
 		try{
 		doCopy(new FileInputStream(corruptFile), new FileOutputStream(new File(corruptFile.getAbsolutePath()+".temp")));
 		FileInputStream isf = new FileInputStream(new File(corruptFile.getAbsolutePath()+".temp"));
@@ -326,9 +429,9 @@ public class FileEncrypt extends JFrame {
 		is.close();
 		File temp = new File(corruptFile.getAbsolutePath()+".temp");
 		temp.delete();
-		
+		long time = System.currentTimeMillis()-start;
 		JOptionPane.showMessageDialog(this,
-			    "Done!",
+			    "Done in " + time + " ms",
 			    "Status",
 			    JOptionPane.INFORMATION_MESSAGE);
 		} catch (Exception e) {
